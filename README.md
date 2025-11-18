@@ -1,4 +1,4 @@
-# ANEF Dossier Status (Text Only)
+# ANEF Dossier Status 
 
 This Chrome extension displays the raw status of your ANEF naturalisation dossier as plain text using the ANEF API. A small floating panel appears on the dossier page, showing the raw status and relevant dates with no icons or binary assets.
 
