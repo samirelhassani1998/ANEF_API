@@ -1,9 +1,8 @@
 {
-  "name": "ANEF Dossier Status (Text Only)",
-  "description": "Displays the naturalisation dossier status from the ANEF API as plain text.",
-  "version": "1.0.0",
   "manifest_version": 3,
-  "permissions": ["scripting", "activeTab"],
+  "name": "ANEF Dossier Status (Text Only)",
+  "version": "1.0.0",
+  "description": "Affiche en texte brut le statut et les dates principales du dossier de naturalisation ANEF.",
   "host_permissions": [
     "https://administration-etrangers-en-france.interieur.gouv.fr/*"
   ],
@@ -12,8 +11,8 @@
       "matches": [
         "https://administration-etrangers-en-france.interieur.gouv.fr/*"
       ],
-      "js": ["inject.js"],
-      "run_at": "document_end"
+      "js": ["content.js"],
+      "run_at": "document_idle"
     }
   ]
 }
