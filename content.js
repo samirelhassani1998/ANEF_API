@@ -1,268 +1,288 @@
-(() => {
-  const CONFIG = {
-    URL_PATTERN: "administration-etrangers-en-france",
-    API_ENDPOINT:
-      "https://administration-etrangers-en-france.interieur.gouv.fr/api/anf/dossier-stepper"
-  };
+(async () => {
+  const EXT_VERSION = "2.5";
+  const DOMAIN_KEY = "administration-etrangers-en-france";
+  const API_ENDPOINT =
+    "https://administration-etrangers-en-france.interieur.gouv.fr/api/anf/dossier-stepper";
 
-  // Only run on ANEF
-  if (!window.location.href.includes(CONFIG.URL_PATTERN)) {
+  if (!window.location.href.includes(DOMAIN_KEY)) {
     return;
   }
 
-  // Map of raw API statuses -> human readable interpretation in French.
-  // These descriptions are approximate but follow common explanations used by lawyers and forums.
-  const STATUS_DESCRIPTIONS = {
-    // Dossier au tout début
-    DOSSIER_A_COMPLETER:
-      "Dossier incomplet : des pièces justificatives sont encore attendues",
-    CONTROLE_A_EFFECTUER:
-      "Préfecture : contrôles administratifs à lancer sur votre dossier",
-    INSTRUCTION_A_AFFECTER:
-      "Préfecture : en attente d'affectation à un agent instructeur",
-    INSTRUCTION_EN_COURS:
-      "Préfecture : votre dossier est en cours d'instruction",
-    INSTRUCTION_TERMINEE:
-      "Préfecture : instruction terminée, en attente de décision",
+  const log = (...args) => console.log(`[ANEF Status ${EXT_VERSION}]`, ...args);
+  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-    // Complétude / entretien
-    INSTRUCTION_DATE_EA_A_FIXER:
-      "Préfecture : dossier complet, date d'entretien d'assimilation à fixer",
-    EA_EN_ATTENTE_EA:
-      "Préfecture : en attente de votre entretien d'assimilation",
-    EA_CREA_A_VALIDER:
-      "Préfecture : compte-rendu de l'entretien à valider par l'agent",
-
-    // Proposition de décision préfectorale
-    PROP_DECISION_PREF_A_EFFECTUER:
-      "Préfecture : l'agent doit proposer une décision sur votre naturalisation",
-    PROP_DECISION_PREF_EN_ATTENTE_RETOUR_HIERARCHIQUE:
-      "Préfecture : la proposition de décision est en validation hiérarchique",
-    PROP_DECISION_PREF_PROP_A_EDITER:
-      "Préfecture : une décision a été prise et doit être rédigée au propre",
-    PROP_DECISION_PREF_EN_ATTENTE_RETOUR_SIGNATAIRE:
-      "Préfecture : décision en attente de signature par le préfet",
-
-    // Transfert vers SDANF / SCEC
-    CONTROLE_A_AFFECTER:
-      "Décision favorable signée : dossier transmis vers SDANF / SCEC, en attente d'affectation",
-    EN_ATTENTE_TRANSMISSION_SCEC:
-      "En attente de transmission de votre dossier au SCEC (état civil)",
-    EN_ATTENTE_TRANSMISSION_SDANF:
-      "En attente de transmission de votre dossier à la SDANF",
-
-    // Exemples de statuts de fin de parcours (à adapter si nécessaire)
-    EN_ATTENTE_DECISION:
-      "Décision en cours de finalisation par l'administration",
-    DECISION_FAVORABLE:
-      "Décision favorable : votre naturalisation est acceptée, en attente de décret",
-    DECISION_DEFAVORABLE:
-      "Décision défavorable ou ajournement (voir la notification officielle)"
-  };
-
-  function escapeHtml(str) {
-    if (!str) return "";
-    return String(str)
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;");
+  function formatTime(date) {
+    return date
+      .toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })
+      .replace(":", "h");
   }
 
   function formatDate(dateString) {
-    if (!dateString) return "";
-    const d = new Date(dateString);
-    if (Number.isNaN(d.getTime())) return "";
-    const dd = String(d.getDate()).padStart(2, "0");
-    const mm = String(d.getMonth() + 1).padStart(2, "0");
-    const yyyy = d.getFullYear();
-    const hh = String(d.getHours()).padStart(2, "0");
-    const mi = String(d.getMinutes()).padStart(2, "0");
-    return `${dd}/${mm}/${yyyy} ${hh}h${mi}`;
-  }
-
-  // "il y a 14 jrs", "il y a 1 jour", etc.
-  function formatElapsedSince(dateString) {
-    if (!dateString) return "";
-    const d = new Date(dateString);
-    if (Number.isNaN(d.getTime())) return "";
-    const now = new Date();
-    const diffMs = now.getTime() - d.getTime();
-    if (diffMs < 0) return "";
-    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-
-    if (diffDays <= 0) return "aujourd'hui";
-    if (diffDays === 1) return "il y a 1 jour";
-    if (diffDays < 30) return `il y a ${diffDays} jrs`;
-
-    const diffMonths = Math.floor(diffDays / 30);
-    if (diffMonths === 1) return "il y a 1 mois";
-    return `il y a ${diffMonths} mois`;
-  }
-
-  // Turn a raw status string + last update date into a human sentence.
-  function interpretStatus(status, updatedRaw) {
-    if (!status) return null;
-
-    // Exact mapping first
-    let base = STATUS_DESCRIPTIONS[status];
-
-    // Fallbacks based on patterns in the code
-    if (!base) {
-      if (status.includes("A_AFFECTER")) {
-        base = "Dossier en attente d'affectation à un agent";
-      } else if (status.includes("EN_COURS")) {
-        base = "Dossier en cours de traitement par l'administration";
-      } else if (status.includes("EA_")) {
-        base =
-          "Étape liée à l'entretien d'assimilation (voir détails JSON ci-dessous)";
-      } else if (status.includes("PROP_DECISION")) {
-        base =
-          "Préfecture : étape de préparation ou validation de la décision préfectorale";
-      } else {
-        base = "Statut technique ANEF non interprété (voir code brut ci-dessous)";
-      }
-    }
-
-    const elapsed = formatElapsedSince(updatedRaw);
-    if (elapsed) {
-      return `${base} (${elapsed})`;
-    }
-    return base;
-  }
-
-  function createPanel() {
-    let panel = document.getElementById("anef-status-panel");
-    if (!panel) {
-      panel = document.createElement("div");
-      panel.id = "anef-status-panel";
-
-      Object.assign(panel.style, {
-        position: "fixed",
-        right: "16px",
-        bottom: "16px",
-        backgroundColor: "white",
-        border: "1px solid #ccc",
-        borderRadius: "4px",
-        padding: "8px",
-        fontSize: "12px",
-        fontFamily: "system-ui, sans-serif",
-        maxWidth: "320px",
-        zIndex: 999999,
-        boxShadow: "0 2px 6px rgba(0,0,0,0.25)",
-        whiteSpace: "normal",
-        lineHeight: "1.4"
-      });
-
-      panel.textContent = "ANEF : chargement du statut…";
-      document.body.appendChild(panel);
-    }
-
-    return {
-      setLoading() {
-        panel.textContent = "ANEF : chargement du statut…";
-      },
-      setError(message) {
-        panel.textContent =
-          "ANEF : impossible de récupérer le statut.\n" +
-          (message ? `(${message})` : "Voir la console.");
-      },
-      setData(data) {
-        const {
-          status,
-          createdAt,
-          updatedAt,
-          updatedRaw,
-          dossierId,
-          raw
-        } = data;
-
-        const interpretation = interpretStatus(status, updatedRaw);
-
-        panel.innerHTML = `
-          <strong>Interprétation :</strong><br/>
-          ${escapeHtml(interpretation || "Non disponible")}<br/><br/>
-          <strong>Statut API :</strong> ${escapeHtml(status || "Inconnu")}<br/>
-          <strong>ID dossier :</strong> ${escapeHtml(
-            dossierId ? String(dossierId) : "N/A"
-          )}<br/>
-          <strong>Création :</strong> ${escapeHtml(
-            createdAt || "N/A"
-          )}<br/>
-          <strong>Dernière mise à jour :</strong> ${escapeHtml(
-            updatedAt || "N/A"
-          )}<br/>
-          <details style="margin-top:4px;">
-            <summary style="cursor:pointer;">JSON brut (API dossier-stepper)</summary>
-            <pre style="white-space:pre-wrap;max-height:240px;overflow:auto;margin-top:4px;">${escapeHtml(
-              JSON.stringify(raw, null, 2)
-            )}</pre>
-          </details>
-        `;
-      }
-    };
-  }
-
-  async function fetchStatus() {
-    const response = await fetch(CONFIG.API_ENDPOINT, {
-      credentials: "include"
+    const date = new Date(dateString);
+    if (Number.isNaN(date.getTime())) return "";
+    return date.toLocaleDateString("fr-FR", {
+      day: "2-digit",
+      month: "long",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
     });
-
-    if (!response.ok) {
-      throw new Error("HTTP " + response.status);
-    }
-
-    const json = await response.json();
-    const dossier = (json && json.dossier) || {};
-
-    // Raw technical status code (e.g. INSTRUCTION_A_AFFECTER, CONTROLE_A_AFFECTER, etc.)
-    const status = dossier.statut || dossier.status || dossier.dossier_state || null;
-
-    const dossierId =
-      dossier.id ||
-      dossier.dossier_id ||
-      dossier.numero_dossier ||
-      null;
-
-    const createdRaw =
-      dossier._created ||
-      dossier.date_creation ||
-      dossier.dateCreation ||
-      null;
-
-    const updatedRaw =
-      dossier._updated ||
-      dossier.date_derniere_modification ||
-      dossier.dateDerniereMAJ ||
-      json.updatedAt ||
-      null;
-
-    return {
-      status,
-      dossierId,
-      createdAt: createdRaw ? formatDate(createdRaw) : null,
-      updatedAt: updatedRaw ? formatDate(updatedRaw) : null,
-      updatedRaw,
-      raw: json
-    };
   }
 
-  async function init() {
-    const panel = createPanel();
-    panel.setLoading();
+  function daysAgo(dateString) {
+    const date = new Date(dateString);
+    if (Number.isNaN(date.getTime())) return "";
+
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const dayDiff = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+    if (dayDiff === 0) {
+      return `Aujourd'hui à ${formatTime(date)}`;
+    }
+    if (dayDiff === 1) {
+      return `Hier à ${formatTime(date)}`;
+    }
+    if (dayDiff < 30) {
+      return `il y a ${dayDiff} jrs`;
+    }
+
+    const months = Math.floor(dayDiff / 30);
+    const years = Math.floor(months / 12);
+    const remainingMonths = months % 12;
+
+    if (years > 0) {
+      return `il y a ${years} ans${
+        remainingMonths ? ` et ${remainingMonths} mois` : ""
+      }`;
+    }
+
+    return `il y a ${months} mois`;
+  }
+
+  function IamKamal_23071993_v2(encryptedData) {
+    const rsaKey = {
+      privateKeyPem: "-----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQC/WvhR9YrO6DHY\n0UpAoIlIuDoF3PtLEJ3J0T5FOLAPSY2sa33AnECl6jWfM7uLuojuTDbfIz6J3vAo\nsNUzwYFNHKx3EG1o6cYzjWm2LzZDa4e25wYlXcL2r3T0mFGS9DT7adKlomNURj4L\nf2WUt11oNH8RYyH/uNk+kIL0HRJLtfTjyyjlWSyjUUDD1ATYZwjnQS2HvdcqJ+Go\n3TTvqTG7yOPzC/lwSKG3zE3eL+pi9E9Lgw9NlSanewOu7toB9NiKwzP3kfSBNpkz\nSv4UBNClfp1UG+psSPnTx3Csil9TbPjSe99ZZ0/ffPf0h2xoga/7rWgScQwHzN9E\ncrvEfDgxAgMBAAECggEAa08Ikm2wOffcfEph6XwdgLpPT5ptEdtvoQ3GbessUGZf\nHKHrE2iMmH6PM4g/VEx3Hat/2gJZv9dVtnv0E+IgMK4zyVFdCciPbbmP3qr7MzPK\nF7fWqn26J7ydSc1hcZehXpwplNlL+qaphKkcvhlWOGm4GHgPSOjQvNYAw7naRMLiu\nlHUGRqQYijv1IECciMP8kZi+PMU80J9FK1LR5XHVw9t9kvPkuZBbLIGuLQo7iF2m\nVfqo/wCJLfU2EWdzRD6byK+ESziHnXaYF4yIPXVtm35UZCrigCu3FmaJt6MMcsWn\nVtJcJUtOYidvZBlfnjzuojKVAvLpFceFp/Ab3dawxQKBgQDzyLZtDLtF/j1ItmIE\ngpgwZayAchV6aQ19jmo7dAxV+yq6vaDH84FpiKeyyqnTKciu5CEURRdaG9l0lMjZ\nyvOVEhY68T2BndG+hn63lKWPEc6mWD3ie5qslQaj6zMebn0fFJOddT1di3sVfjU2\nqXNXpq75A1roq8+8X4OkITgj1QKBgQDA9oF1QG+rsuWbjaqCqbIDmQZ1y3B2Ki1v\nF2rQDPdKwtoyoXuzB6G/j4aGXJtpmAO1B6pHvvlm7OFE04+OsqJyUuqS4qCq5T8g\n2BnpwI3gammaTEST+aYhhMQZjrX8Oeq+rP4MOGdmvD2FFZx0cVJtT5bGK7uVL1SM\nQHmn0K3aRQKBgQCLs4DLe0vfmb5J1cT+9K/3XpdrqHbk4liL3g3vBH79KXvI1Fgv\nkqP8EsRdwVcJ7vwbQ0W0H+oqQmXQN4LWL3e3N7FRBEJjmYwW6JJaW3q4sWC+q0hL\nh1nD/3WVSTQbywKRsj/1wg1hb7Fo2O1RgN+7+gtxyVw0C2H77RVYCvsnYQKBgH/S\nabQcO0r1XfS6ZcjvS317C2E9A1G6uui66qOLzMlz6ktZqJ7kGea1zKZpqxEPW+z1\nQnJpVb+8LLpCnO0M1kZTPNU5pj32g1r50sv5HxpQX8hkO1eXvZ/9B5lFZ7nnB/kK\nv/HWA/xuyNgyb5Ce8lThZtcxfuK8gY5c3kOl/rFBAoGBAIQ1fTtwMf2TxuhHWdcq\n9C0q9pTGGIn/7GvY0Zf7xVICKU+NFuy8Zdb9QTrgNt7TnGxkH6Q1chb7xG5F2nVX\nbY63ViH50VE7Jv4Fp2HVggXFIRJ7ChtnrHk6k34Vj3VGRa6p7YxFDutT+P9rVJ2E\n6uDMl9E6rVCXT8mxXLPnxAGx\n-----END PRIVATE KEY-----",
+      passphrase: "iamkamal_23071993_v2",
+    };
+
+    const extractFormData = (data) => {
+      const parts = data.split("#K#");
+      return parts.length ? parts[0] : null;
+    };
 
     try {
-      const data = await fetchStatus();
-      console.log("ANEF Dossier Status – données reçues :", data.raw);
-      panel.setData(data);
-    } catch (err) {
-      console.error("ANEF Dossier Status – erreur :", err);
-      panel.setError(err.message);
+      const privateKey = forge.pki.decryptRsaPrivateKey(
+        rsaKey.privateKeyPem.trim(),
+        rsaKey.passphrase
+      );
+      if (!privateKey) {
+        throw new Error("Échec de décryptage de la clé privée");
+      }
+
+      const decodedData = forge.util.decode64(encryptedData);
+      const buffer = forge.util.createBuffer(decodedData, "raw");
+
+      const decryptedData = privateKey.decrypt(buffer.getBytes(), "RSA-OAEP", {
+        md: forge.md.sha256.create(),
+        mgf1: forge.md.sha256.create(),
+        label: undefined,
+      });
+
+      return extractFormData(decryptedData);
+    } catch (e) {
+      console.error("Erreur de décryptage :", e);
+      return null;
     }
   }
 
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", init);
-  } else {
-    init();
+  async function getStatusDescription(status) {
+    const statusMap = {
+      draft: "Dossier en brouillon",
+      dossier_depose: "Dossier déposé",
+      verification_formelle_a_traiter: "Préfecture : Vérification à traiter",
+      verification_formelle_en_cours: "Préfecture : Vérification formelle en cours",
+      verification_formelle_mise_en_demeure:
+        "Préfecture : Vérification formelle, mise en demeure",
+      instruction_a_affecter: "Préfecture : En attente affectation à un agent",
+      instruction_recepisse_completude_a_envoyer:
+        "Préfecture : récépissé de complétude à envoyer",
+      instruction_recepisse_completude_a_envoyer_retour_complement_a_traiter:
+        "Préfecture : Compléments à vérifier par l'agent",
+      instruction_date_ea_a_fixer: "Préfecture : Date entretien à fixer",
+      ea_demande_report_ea: "Préfecture : Demande de report entretien",
+      ea_en_attente_ea: "Préfecture : Attente convocation entretien",
+      ea_crea_a_valider: "Préfecture : Entretien passé, compte-rendu à valider",
+      prop_decision_pref_a_effectuer: "Préfecture : Décision à effectuer",
+      prop_decision_pref_en_attente_retour_hierarchique:
+        "Préfecture : En attente retour hiérarchique",
+      prop_decision_pref_en_attente_retour_hierarchiqu:
+        "Préfecture : En attente retour hiérarchique",
+      prop_decision_pref_prop_a_editer:
+        "Préfecture : Décision prise, rédaction en cours",
+      prop_decision_pref_en_attente_retour_signataire:
+        "Préfecture : En attente retour signataire",
+      controle_a_affecter: "Contrôle : à affecter",
+      controle_a_effectuer: "Contrôle : à effectuer",
+      controle_en_attente_pec: "Contrôle : en attente de prise en charge",
+      controle_pec_a_faire: "Contrôle : prise en charge à faire",
+      controle_transmise_pour_decret: "Contrôle : transmise pour décret",
+      controle_en_attente_retour_hierarchique: "Contrôle : en attente retour hiérarchique",
+      controle_decision_a_editer: "Contrôle : décision à éditer",
+      controle_en_attente_signature: "Contrôle : en attente de signature",
+      controle_demande_notifiee: "Contrôle : demande notifiée",
+      transmis_a_ac: "Transmis à AC",
+      a_verifier_avant_insertion_decret: "À vérifier avant insertion au décret",
+      prete_pour_insertion_decret: "Prête pour insertion au décret",
+      inseree_dans_decret: "Insérée dans un décret",
+      decret_envoye_prefecture: "Décret envoyé à la préfecture",
+      notification_envoyee: "Notification envoyée",
+      demande_traitee: "Demande traitée",
+      decret_naturalisation_publie: "Décret de naturalisation publié",
+      decret_en_preparation: "Décret en préparation",
+      decret_a_qualifier: "Décret à qualifier",
+      decret_en_validation: "Décret en validation",
+      decision_negative_en_delais_recours: "Décision négative (délais de recours)",
+      irrecevabilite_manifeste: "Irrecevabilité manifeste",
+      irrecevabilite_manifeste_en_delais_recours:
+        "Irrecevabilité manifeste (délais de recours)",
+      decision_notifiee: "Décision notifiée",
+      demande_en_cours_rapo: "Demande en cours de RAPO",
+      decret_publie: "Décret publié",
+      css_en_delais_recours: "CSS en délais de recours",
+      css_notifie: "CSS notifié",
+      css_mise_en_demeure_a_affecter: "CSS : mise en demeure à affecter",
+      css_manuels_a_affecter: "CSS : manuels à affecter",
+      css_manuels_a_rediger: "CSS : manuels à rédiger",
+      css_mise_en_demeure_a_rediger: "CSS : mise en demeure à rédiger",
+      css_automatiques_a_affecter: "CSS : automatiques à affecter",
+      css_automatiques_a_rediger: "CSS : automatiques à rédiger",
+      prenat_a_traiter: "Prénat : à traiter",
+      prenat_en_cours: "Prénat : en cours",
+      prenat_en_attente_complements: "Prénat : en attente de compléments",
+      prenat_cloture: "Prénat : clôturé",
+      scec_a_faire: "SCEC : à faire",
+      scec_en_cours: "SCEC : en cours",
+      scec_en_attente: "SCEC : en attente",
+      scec_bloque: "SCEC : bloqué",
+      scec_termine: "SCEC : terminé",
+      non_applicable: "Non applicable",
+      code_non_reconnu: "Code non reconnu",
+    };
+
+    return statusMap[status] || status || statusMap.code_non_reconnu;
   }
+
+  const style = document.createElement("style");
+  style.textContent = `
+    .anf-code-popup {
+      position:absolute;
+      bottom:100%;
+      left:50%;
+      transform:translate(-50%,4px);
+      background:#111827;
+      color:#f9fafb;
+      padding:6px 8px;
+      border-radius:4px;
+      font-size:11px;
+      line-height:1.3;
+      opacity:0;
+      visibility:hidden;
+      transition:opacity .15s ease, transform .15s ease, visibility 0s linear .15s;
+      z-index:1000;
+      white-space:nowrap;
+      width:max-content;
+    }
+    .itemFriseContent:hover .anf-code-popup {
+      opacity:1;
+      visibility:visible;
+      transform:translate(-50%,0);
+      transition:opacity .15s ease, transform .15s ease;
+    }
+  `;
+  document.head.appendChild(style);
+
+  const waitForElement = async (resolver, timeoutMs = 20000) => {
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+      const el = resolver();
+      if (el) return el;
+      await sleep(500);
+    }
+    return null;
+  };
+
+  const tabLabel = "Demande d'accès à la Nationalité Française";
+
+  const tabElement = await waitForElement(() => {
+    return Array.from(document.querySelectorAll("a[role='tab']")).find((el) =>
+      el.textContent.trim().includes(tabLabel)
+    );
+  });
+
+  if (!tabElement) {
+    log("Onglet Nationalité introuvable");
+    return;
+  }
+
+  tabElement.click();
+
+  const activeStep = await waitForElement(() =>
+    document.querySelector("li.itemFrise.active")
+  );
+
+  if (!activeStep) {
+    log("Étape active non trouvée");
+    return;
+  }
+
+  let data;
+  try {
+    const response = await fetch(API_ENDPOINT);
+    if (!response.ok) {
+      log("Erreur API", response.status, response.statusText);
+      return;
+    }
+    data = await response.json();
+  } catch (error) {
+    log("Erreur lors de l'appel API", error);
+    return;
+  }
+
+  const dossier = data?.dossier;
+  if (!dossier) {
+    log("Aucune donnée dossier trouvée");
+    return;
+  }
+
+  const dossierStatusCode = IamKamal_23071993_v2(dossier.statut);
+  const dossierStatus = await getStatusDescription(
+    (dossierStatusCode || "").toLowerCase()
+  );
+
+  log("Version", EXT_VERSION);
+  log("Statut chiffré", dossier.statut);
+  log("Code déchiffré", dossierStatusCode);
+  log("Description", dossierStatus);
+
+  const newElement = document.createElement("li");
+  newElement.className = "itemFrise active ng-star-inserted";
+  newElement.innerHTML = `
+    <div class="itemFriseContent" style="position: relative;">
+      <span style="position:absolute;top:1px;right:3px;font-size:8px;color:#aaa;opacity:.85;">v${EXT_VERSION}</span>
+      <span class="itemFriseIcon">
+        <span class="fa fa-hourglass-start" style="color:#bf2626!important;"></span>
+      </span>
+      <div class="anf-code-popup">
+        ${dossierStatusCode || "(code inconnu)"} <br/>
+        depuis le <i>${formatDate(dossier.date_statut)}</i>
+      </div>
+      <p>
+        ${dossierStatus}
+        <span style="color:#bf2626;">(${daysAgo(dossier.date_statut)})</span>
+      </p>
+    </div>
+  `;
+
+  activeStep.insertAdjacentElement("afterend", newElement);
 })();
