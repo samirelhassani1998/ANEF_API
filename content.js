@@ -170,7 +170,36 @@
       code_non_reconnu: "Code non reconnu",
     };
 
-    return statusMap[status] || status || statusMap.code_non_reconnu;
+    if (!status) {
+      return statusMap["code_non_reconnu"];
+    }
+
+    const normalized = String(status).toLowerCase().trim();
+
+    if (statusMap[normalized]) {
+      return statusMap[normalized];
+    }
+
+    if (normalized.startsWith("instruction_a_affecter")) {
+      return statusMap["instruction_a_affecter"];
+    }
+    if (normalized.startsWith("verification_formelle_")) {
+      return statusMap["verification_formelle_en_cours"];
+    }
+    if (normalized.startsWith("instruction_recepisse_completude_")) {
+      return statusMap["instruction_recepisse_completude_a_envoyer"];
+    }
+    if (normalized.startsWith("prop_decision_pref_")) {
+      return statusMap["prop_decision_pref_a_effectuer"];
+    }
+    if (normalized.startsWith("controle_")) {
+      return statusMap["controle_a_effectuer"];
+    }
+    if (normalized.startsWith("ea_")) {
+      return "Étape liée à l'entretien d'assimilation";
+    }
+
+    return `${statusMap["code_non_reconnu"]} (code : ${normalized})`;
   }
 
   const style = document.createElement("style");
@@ -255,15 +284,27 @@
     return;
   }
 
-  const dossierStatusCode = IamKamal_23071993_v2(dossier.statut);
-  const dossierStatus = await getStatusDescription(
-    (dossierStatusCode || "").toLowerCase()
-  );
+  let dossierStatusCode = IamKamal_23071993_v2(dossier.statut);
+  if (!dossierStatusCode) {
+    dossierStatusCode = "code_non_reconnu";
+  }
+
+  const dossierStatus = await getStatusDescription(dossierStatusCode);
 
   log("Version", EXT_VERSION);
   log("Statut chiffré", dossier.statut);
   log("Code déchiffré", dossierStatusCode);
   log("Description", dossierStatus);
+  console.log("[ANEF_API] Statut brut déchiffré =", dossierStatusCode);
+  console.log("[ANEF_API] Statut interprété   =", dossierStatus);
+
+  const isUnknown =
+    dossierStatus && dossierStatus.startsWith("Code non reconnu");
+
+  let statusLine = dossierStatus;
+  if (isUnknown && dossierStatusCode) {
+    statusLine += ` – code technique : ${dossierStatusCode}`;
+  }
 
   const newElement = document.createElement("li");
   newElement.className = "itemFrise active ng-star-inserted";
@@ -278,7 +319,7 @@
         depuis le <i>${formatDate(dossier.date_statut)}</i>
       </div>
       <p>
-        ${dossierStatus}
+        ${statusLine}
         <span style="color:#bf2626;">(${daysAgo(dossier.date_statut)})</span>
       </p>
     </div>
