@@ -1,25 +1,27 @@
 {
   "manifest_version": 3,
-  "name": "ANEF Dossier Status (Text Only)",
-  "version": "2.5",
+  "name": "Statut API du Dossier Naturalisation",
+  "version": "2.7",
   "description": "Affiche et interprète le statut ANEF du dossier de naturalisation.",
-  "permissions": ["scripting", "activeTab"],
+  "permissions": [
+    "scripting",
+    "activeTab"
+  ],
   "host_permissions": [
     "https://administration-etrangers-en-france.interieur.gouv.fr/*"
   ],
-  "content_scripts": [
-    {
-      "matches": [
-        "https://administration-etrangers-en-france.interieur.gouv.fr/*"
-      ],
-      "js": ["inject.js"],
-      "run_at": "document_idle"
-    }
-  ],
-  "web_accessible_resources": [
-    {
-      "resources": ["content.js", "forge.min.js"],
-      "matches": ["<all_urls>"]
-    }
-  ]
+  "content_scripts": [{
+    "matches": ["https://administration-etrangers-en-france.interieur.gouv.fr/*"],
+    "js": ["inject.js"],
+    "run_at": "document_end"
+  }],
+  "web_accessible_resources": [{
+    "resources": ["content.js", "forge.min.js"],
+    "matches": ["https://administration-etrangers-en-france.interieur.gouv.fr/*"]
+  }],
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png", 
+    "128": "icons/icon128.png"
+  }
 }
