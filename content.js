@@ -226,6 +226,8 @@
       z-index:1000;
       white-space:nowrap;
       width:max-content;
+      max-width:360px;
+      white-space:normal;
     }
     .itemFriseContent:hover .anf-code-popup {
       opacity:1;
@@ -303,6 +305,8 @@
   console.log("[ANEF_API] Statut brut déchiffré =", dossierStatusCode);
   console.log("[ANEF_API] Statut interprété   =", dossierStatus);
 
+  const dateStatut = formatDate(dossier.date_statut);
+
   const newElement = document.createElement("li");
   newElement.className = "itemFrise active ng-star-inserted";
   newElement.innerHTML = `
@@ -312,8 +316,11 @@
         <span class="fa fa-hourglass-start" style="color:#bf2626!important;"></span>
       </span>
       <div class="anf-code-popup">
-        ${dossierStatusCode || "(code inconnu)"} <br/>
-        depuis le <i>${formatDate(dossier.date_statut)}</i>
+        ${dossierStatus}<br/>
+        <span style="font-size:10px;opacity:.75;">
+          Code technique : ${dossierStatusCode}
+        </span><br/>
+        depuis le <i>${dateStatut}</i>
       </div>
       <p>
         ${dossierStatus}
