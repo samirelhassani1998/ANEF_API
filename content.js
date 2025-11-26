@@ -11,6 +11,12 @@
   const log = (...args) => console.log(`[ANEF Status ${EXT_VERSION}]`, ...args);
   const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+  // Ensure forge is loaded
+  if (typeof forge === "undefined" || !forge) {
+    console.error(`[ANEF Status ${EXT_VERSION}] Critical Error: 'forge' library not found. Decryption impossible.`);
+    return;
+  }
+
   function formatTime(date) {
     return date
       .toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })
@@ -52,9 +58,8 @@
     const remainingMonths = months % 12;
 
     if (years > 0) {
-      return `il y a ${years} ans${
-        remainingMonths ? ` et ${remainingMonths} mois` : ""
-      }`;
+      return `il y a ${years} ans${remainingMonths ? ` et ${remainingMonths} mois` : ""
+        }`;
     }
 
     return `il y a ${months} mois`;
@@ -167,7 +172,7 @@
       scec_bloque: "SCEC : bloqué",
       scec_termine: "SCEC : terminé",
       non_applicable: "Non applicable",
-      code_non_reconnu: "Code non reconnu",
+      code_non_reconnu: "Préfecture : En attente affectation à un agent",
     };
 
     if (!status) {
@@ -298,14 +303,6 @@
   console.log("[ANEF_API] Statut brut déchiffré =", dossierStatusCode);
   console.log("[ANEF_API] Statut interprété   =", dossierStatus);
 
-  const isUnknown =
-    dossierStatus && dossierStatus.startsWith("Code non reconnu");
-
-  let statusLine = dossierStatus;
-  if (isUnknown && dossierStatusCode) {
-    statusLine += ` – code technique : ${dossierStatusCode}`;
-  }
-
   const newElement = document.createElement("li");
   newElement.className = "itemFrise active ng-star-inserted";
   newElement.innerHTML = `
@@ -319,7 +316,7 @@
         depuis le <i>${formatDate(dossier.date_statut)}</i>
       </div>
       <p>
-        ${statusLine}
+        ${dossierStatus}
         <span style="color:#bf2626;">(${daysAgo(dossier.date_statut)})</span>
       </p>
     </div>
