@@ -65,6 +65,16 @@
     return `il y a ${months} mois`;
   }
 
+  function escapeHtml(text) {
+    if (!text) return "";
+    return text
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+  }
+
   function IamKamal_23071993_v2(encryptedData) {
     const rsaKey = {
       privateKeyPem: "-----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQC/WvhR9YrO6DHY\n0UpAoIlIuDoF3PtLEJ3J0T5FOLAPSY2sa33AnECl6jWfM7uLuojuTDbfIz6J3vAo\nsNUzwYFNHKx3EG1o6cYzjWm2LzZDa4e25wYlXcL2r3T0mFGS9DT7adKlomNURj4L\nf2WUt11oNH8RYyH/uNk+kIL0HRJLtfTjyyjlWSyjUUDD1ATYZwjnQS2HvdcqJ+Go\n3TTvqTG7yOPzC/lwSKG3zE3eL+pi9E9Lgw9NlSanewOu7toB9NiKwzP3kfSBNpkz\nSv4UBNClfp1UG+psSPnTx3Csil9TbPjSe99ZZ0/ffPf0h2xoga/7rWgScQwHzN9E\ncrvEfDgxAgMBAAECggEAa08Ikm2wOffcfEph6XwdgLpPT5ptEdtvoQ3GbessUGZf\nHKHrE2iMmH6PM4g/VEx3Hat/2gJZv9dVtnv0E+IgMK4zyVFdCciPbbmP3qr7MzPK\nF7fWqn26J7ydSc1hcZehXpwplNlL+qaphKkcvhlWOGm4GHgPSOjQvNYAw7naRMLiu\nlHUGRqQYijv1IECciMP8kZi+PMU80J9FK1LR5XHVw9t9kvPkuZBbLIGuLQo7iF2m\nVfqo/wCJLfU2EWdzRD6byK+ESziHnXaYF4yIPXVtm35UZCrigCu3FmaJt6MMcsWn\nVtJcJUtOYidvZBlfnjzuojKVAvLpFceFp/Ab3dawxQKBgQDzyLZtDLtF/j1ItmIE\ngpgwZayAchV6aQ19jmo7dAxV+yq6vaDH84FpiKeyyqnTKciu5CEURRdaG9l0lMjZ\nyvOVEhY68T2BndG+hn63lKWPEc6mWD3ie5qslQaj6zMebn0fFJOddT1di3sVfjU2\nqXNXpq75A1roq8+8X4OkITgj1QKBgQDA9oF1QG+rsuWbjaqCqbIDmQZ1y3B2Ki1v\nF2rQDPdKwtoyoXuzB6G/j4aGXJtpmAO1B6pHvvlm7OFE04+OsqJyUuqS4qCq5T8g\n2BnpwI3gammaTEST+aYhhMQZjrX8Oeq+rP4MOGdmvD2FFZx0cVJtT5bGK7uVL1SM\nQHmn0K3aRQKBgQCLs4DLe0vfmb5J1cT+9K/3XpdrqHbk4liL3g3vBH79KXvI1Fgv\nkqP8EsRdwVcJ7vwbQ0W0H+oqQmXQN4LWL3e3N7FRBEJjmYwW6JJaW3q4sWC+q0hL\nh1nD/3WVSTQbywKRsj/1wg1hb7Fo2O1RgN+7+gtxyVw0C2H77RVYCvsnYQKBgH/S\nabQcO0r1XfS6ZcjvS317C2E9A1G6uui66qOLzMlz6ktZqJ7kGea1zKZpqxEPW+z1\nQnJpVb+8LLpCnO0M1kZTPNU5pj32g1r50sv5HxpQX8hkO1eXvZ/9B5lFZ7nnB/kK\nv/HWA/xuyNgyb5Ce8lThZtcxfuK8gY5c3kOl/rFBAoGBAIQ1fTtwMf2TxuhHWdcq\n9C0q9pTGGIn/7GvY0Zf7xVICKU+NFuy8Zdb9QTrgNt7TnGxkH6Q1chb7xG5F2nVX\nbY63ViH50VE7Jv4Fp2HVggXFIRJ7ChtnrHk6k34Vj3VGRa6p7YxFDutT+P9rVJ2E\n6uDMl9E6rVCXT8mxXLPnxAGx\n-----END PRIVATE KEY-----",
@@ -305,26 +315,92 @@
   console.log("[ANEF_API] Statut brut déchiffré =", dossierStatusCode);
   console.log("[ANEF_API] Statut interprété   =", dossierStatus);
 
+  const rawStatus = dossierStatus || "";
+  const parts = rawStatus.split(":");
+  const mainLabelText = (parts[0] || "").trim() || "Statut dossier";
+  const subLabelText = (parts.slice(1).join(":") || "").trim() || rawStatus;
+  const timeLabelText = `(${daysAgo(dossier.date_statut)})`;
   const dateStatut = formatDate(dossier.date_statut);
+
+  const styleId = "anef-helper-style";
+  if (!document.getElementById(styleId)) {
+    const style = document.createElement("style");
+    style.id = styleId;
+    style.textContent = `
+      .anef-helper-step {
+        text-align: center;
+      }
+
+      .anef-helper-step .anef-helper-version {
+        position: absolute;
+        top: 1px;
+        right: 4px;
+        font-size: 8px;
+        color: #9ca3af;
+        opacity: 0.85;
+      }
+
+      .anef-helper-step .anef-helper-icon {
+        color: #bf2626 !important;
+        font-size: 18px;
+      }
+
+      .anef-helper-step .anef-helper-text {
+        margin: 4px 0 0 0;
+        padding: 0 4px;
+        font-size: 12px;
+        line-height: 1.35;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+        white-space: normal;
+      }
+
+      .anef-helper-step .anef-helper-title {
+        font-weight: 600;
+        color: #111827;
+      }
+
+      .anef-helper-step .anef-helper-sub {
+        font-weight: 400;
+        color: #1f2933;
+      }
+
+      .anef-helper-step .anef-helper-time {
+        margin-top: 2px;
+        color: #bf2626;
+        font-size: 11px;
+      }
+
+      .anef-helper-step .anf-code-popup {
+        width: max-content;
+        max-width: 360px;
+        white-space: normal;
+      }
+    `;
+    document.head.appendChild(style);
+  }
 
   const newElement = document.createElement("li");
   newElement.className = "itemFrise active ng-star-inserted";
   newElement.innerHTML = `
-    <div class="itemFriseContent" style="position: relative;">
-      <span style="position:absolute;top:1px;right:3px;font-size:8px;color:#aaa;opacity:.85;">v${EXT_VERSION}</span>
+    <div class="itemFriseContent anef-helper-step" style="position: relative;">
+      <span class="anef-helper-version">v${EXT_VERSION}</span>
       <span class="itemFriseIcon">
-        <span class="fa fa-hourglass-start" style="color:#bf2626!important;"></span>
+        <span class="fa fa-hourglass-start anef-helper-icon"></span>
       </span>
       <div class="anf-code-popup">
-        ${dossierStatus}<br/>
+        ${escapeHtml(rawStatus)}<br/>
         <span style="font-size:10px;opacity:.75;">
-          Code technique : ${dossierStatusCode}
+          Code technique : ${escapeHtml(dossierStatusCode)}
         </span><br/>
-        depuis le <i>${dateStatut}</i>
+        depuis le <i>${escapeHtml(dateStatut)}</i>
       </div>
-      <p>
-        ${dossierStatus}
-        <span style="color:#bf2626;">(${daysAgo(dossier.date_statut)})</span>
+      <p class="anef-helper-text">
+        <span class="anef-helper-title">${escapeHtml(mainLabelText)}</span>
+        <span class="anef-helper-sub">${escapeHtml(subLabelText)}</span>
+        <span class="anef-helper-time">${escapeHtml(timeLabelText)}</span>
       </p>
     </div>
   `;
