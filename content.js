@@ -317,9 +317,10 @@
 
   const rawStatus = dossierStatus || "";
   const parts = rawStatus.split(":");
-  const mainLabelText = (parts[0] || "").trim() || "Statut dossier";
-  const subLabelText = (parts.slice(1).join(":") || "").trim() || rawStatus;
-  const timeLabelText = `(${daysAgo(dossier.date_statut)})`;
+  const mainPlace = (parts[0] || "").trim() || "Préfecture";
+  const mainMessage = (parts.slice(1).join(":") || "").trim() || rawStatus;
+  const mainLine = `${mainPlace} – ${mainMessage}`;
+  const timeLine = `(${daysAgo(dossier.date_statut)})`;
   const dateStatut = formatDate(dossier.date_statut);
 
   const styleId = "anef-helper-style";
@@ -333,11 +334,11 @@
 
       .anef-helper-step .anef-helper-version {
         position: absolute;
-        top: 1px;
+        top: 2px;
         right: 4px;
         font-size: 8px;
         color: #9ca3af;
-        opacity: 0.85;
+        opacity: 0.7;
       }
 
       .anef-helper-step .anef-helper-icon {
@@ -349,7 +350,7 @@
         margin: 4px 0 0 0;
         padding: 0 4px;
         font-size: 12px;
-        line-height: 1.35;
+        line-height: 1.3;
         display: flex;
         flex-direction: column;
         align-items: center;
@@ -357,20 +358,16 @@
         white-space: normal;
       }
 
-      .anef-helper-step .anef-helper-title {
-        font-weight: 600;
+      .anef-helper-step .anef-helper-line-main {
         color: #111827;
+        font-weight: 500;
       }
 
-      .anef-helper-step .anef-helper-sub {
-        font-weight: 400;
-        color: #1f2933;
-      }
-
-      .anef-helper-step .anef-helper-time {
+      .anef-helper-step .anef-helper-line-time {
         margin-top: 2px;
-        color: #bf2626;
         font-size: 11px;
+        color: #bf2626;
+        font-weight: 400;
       }
 
       .anef-helper-step .anf-code-popup {
@@ -398,9 +395,8 @@
         depuis le <i>${escapeHtml(dateStatut)}</i>
       </div>
       <p class="anef-helper-text">
-        <span class="anef-helper-title">${escapeHtml(mainLabelText)}</span>
-        <span class="anef-helper-sub">${escapeHtml(subLabelText)}</span>
-        <span class="anef-helper-time">${escapeHtml(timeLabelText)}</span>
+        <span class="anef-helper-line-main">${escapeHtml(mainLine)}</span>
+        <span class="anef-helper-line-time">${escapeHtml(timeLine)}</span>
       </p>
     </div>
   `;
