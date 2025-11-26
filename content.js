@@ -493,7 +493,18 @@
     const parts = interpreted.split(":");
     const placeLabel = (parts[0] || "").trim() || "Préfecture";
     const messageLabel = (parts.slice(1).join(":") || "").trim() || interpreted;
-    const elapsedLabel = `(${daysAgo(data?.dossier?.date_statut)})`;
+
+    // main line: only the message part, to keep it short
+    const mainLine = messageLabel;
+
+    // elapsed text, without parentheses
+    const elapsedText = daysAgo(data?.dossier?.date_statut) || "";
+
+    // meta line: "(Préfecture • il y a 22 jrs)"
+    const metaLine = elapsedText
+      ? `(${placeLabel} • ${elapsedText})`
+      : `(${placeLabel})`;
+
     const dateStatut = formatDate(data?.dossier?.date_statut);
 
     // Inject custom CSS
@@ -522,7 +533,7 @@
 
         .anef-helper-step .anef-helper-text {
           margin: 4px 0 0 0;
-          padding: 0 4px;
+          padding: 0 2px;
           font-size: 12px;
           line-height: 1.25;
           display: flex;
@@ -530,48 +541,27 @@
           align-items: center;
           text-align: center;
           white-space: normal;
+          max-width: 120px;       /* keeps the block visually compact */
+          margin-left: auto;
+          margin-right: auto;
         }
 
-        .anef-helper-step .anef-helper-title {
-          font-weight: 600;
+        .anef-helper-step .anef-helper-main {
+          font-weight: 500;
           color: #111827;
         }
 
-        .anef-helper-step .anef-helper-sub {
-          font-weight: 400;
-          color: #1f2933;
-        }
-
-        .anef-helper-step .anef-helper-time {
+        .anef-helper-step .anef-helper-meta {
           margin-top: 2px;
           font-size: 11px;
-          color: #bf2626;
+          color: #bf2626;        /* close to the existing red on the timeline */
+          font-weight: 400;
         }
 
         .anef-helper-step .anf-code-popup {
           width: max-content;
           max-width: 360px;
           white-space: normal;
-          position:absolute;
-          bottom:100%;
-          left:50%;
-          transform:translate(-50%,4px);
-          background:#111827;
-          color:#f9fafb;
-          padding:6px 8px;
-          border-radius:4px;
-          font-size:11px;
-          line-height:1.3;
-          opacity:0;
-          visibility:hidden;
-          transition:opacity .15s ease, transform .15s ease, visibility 0s linear .15s;
-          z-index:1000;
-        }
-        .itemFriseContent:hover .anf-code-popup {
-          opacity:1;
-          visibility:visible;
-          transform:translate(-50%,0);
-          transition:opacity .15s ease, transform .15s ease;
         }
       `;
       document.head.appendChild(style);
@@ -595,9 +585,8 @@
           depuis le <i>${escapeHtml(dateStatut)}</i>
         </div>
         <p class="anef-helper-text">
-          <span class="anef-helper-title">${escapeHtml(placeLabel)}</span>
-          <span class="anef-helper-sub">${escapeHtml(messageLabel)}</span>
-          <span class="anef-helper-time">${escapeHtml(elapsedLabel)}</span>
+          <span class="anef-helper-main">${escapeHtml(mainLine)}</span>
+          <span class="anef-helper-meta">${escapeHtml(metaLine)}</span>
         </p>
       </div>
     `;
