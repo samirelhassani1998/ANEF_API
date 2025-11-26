@@ -489,12 +489,11 @@
     }
 
     // Prepare strings for custom UI
-    const rawStatus = dossierStatus || "";
-    const parts = rawStatus.split(":");
-    const mainPlace = (parts[0] || "").trim() || "Préfecture";
-    const mainMessage = (parts.slice(1).join(":") || "").trim() || rawStatus;
-    const mainLine = `${mainPlace} – ${mainMessage}`;
-    const timeLine = `(${daysAgo(data?.dossier?.date_statut)})`;
+    const interpreted = dossierStatus || "";
+    const parts = interpreted.split(":");
+    const placeLabel = (parts[0] || "").trim() || "Préfecture";
+    const messageLabel = (parts.slice(1).join(":") || "").trim() || interpreted;
+    const elapsedLabel = `(${daysAgo(data?.dossier?.date_statut)})`;
     const dateStatut = formatDate(data?.dossier?.date_statut);
 
     // Inject custom CSS
@@ -525,7 +524,7 @@
           margin: 4px 0 0 0;
           padding: 0 4px;
           font-size: 12px;
-          line-height: 1.3;
+          line-height: 1.25;
           display: flex;
           flex-direction: column;
           align-items: center;
@@ -533,16 +532,20 @@
           white-space: normal;
         }
 
-        .anef-helper-step .anef-helper-line-main {
+        .anef-helper-step .anef-helper-title {
+          font-weight: 600;
           color: #111827;
-          font-weight: 500;
         }
 
-        .anef-helper-step .anef-helper-line-time {
+        .anef-helper-step .anef-helper-sub {
+          font-weight: 400;
+          color: #1f2933;
+        }
+
+        .anef-helper-step .anef-helper-time {
           margin-top: 2px;
           font-size: 11px;
           color: #bf2626;
-          font-weight: 400;
         }
 
         .anef-helper-step .anf-code-popup {
@@ -585,15 +588,16 @@
           <span class="fa fa-hourglass-start anef-helper-icon"></span>
         </span>
         <div class="anf-code-popup">
-          ${escapeHtml(rawStatus)}<br/>
+          ${escapeHtml(interpreted)}<br/>
           <span style="font-size:10px;opacity:.75;">
             Code technique : ${escapeHtml(dossierStatusCode)}
           </span><br/>
           depuis le <i>${escapeHtml(dateStatut)}</i>
         </div>
         <p class="anef-helper-text">
-          <span class="anef-helper-line-main">${escapeHtml(mainLine)}</span>
-          <span class="anef-helper-line-time">${escapeHtml(timeLine)}</span>
+          <span class="anef-helper-title">${escapeHtml(placeLabel)}</span>
+          <span class="anef-helper-sub">${escapeHtml(messageLabel)}</span>
+          <span class="anef-helper-time">${escapeHtml(elapsedLabel)}</span>
         </p>
       </div>
     `;
