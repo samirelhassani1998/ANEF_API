@@ -141,7 +141,3 @@ Les contributions sont les bienvenues ! N'hésitez pas à :
 ## 📄 Licence
 
 Ce projet est sous licence MIT. Voir le fichier [LICENSE](./LICENSE) pour plus de détails.
-
----
-
-**Développé avec ❤️ pour la communauté des demandeurs de naturalisation française**
